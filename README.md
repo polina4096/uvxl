@@ -1,4 +1,4 @@
-# UVxl [![dependency status](https://deps.rs/repo/github/polina4096/uvxl/status.svg)](https://deps.rs/repo/github/polina4096/uvxl)
+# UVxl [![dependency status](https://deps.rs/repo/github/polina4096/uvxl/status.svg)](https://deps.rs/repo/github/polina4096/uvxl) [![GitHub](https://img.shields.io/github/license/polina4096/uvxl)](https://github.com/polina4096/uvxl/blob/master/LICENSE)
 
 Multiplayer voxel sandbox game which runs on Linux, macOS, Windows, and the web using WASM.
 
