@@ -75,7 +75,7 @@ cfg_if! {
         .expect("Failed to append canvas to document body");
 
       let _ = web_window.set_timeout_with_callback(closure.as_ref().unchecked_ref())
-        .map_err(|err| error!("Failed to set initial size for canvas: {:?}", err));
+        .map_err(|err| log::error!("Failed to set initial size for canvas: {:?}", err));
 
       App::run(window, event_loop).await;
 
