@@ -1,13 +1,16 @@
-use glam::IVec3;
+use glam::{IVec3, Vec3};
 use winit::dpi::PhysicalSize;
-use winit::event::{DeviceEvent, WindowEvent};
+use winit::event::{DeviceEvent, VirtualKeyCode, WindowEvent};
 use crate::app::App;
+use crate::game::client::graphics::chunk_model::ChunkModel;
+use crate::game::client::graphics::chunk_renderer::mesher;
 use crate::game::client::graphics::world_renderer::WorldRenderer;
 use crate::game::entity::Entity;
 use crate::game::network::packet::{InitialChunkDataServerPacket, ClientJoinServerPacket, ServerPacket, ClientPacket, ClientMovePacket};
 use crate::game::player::Player;
-use crate::game::world::chunk::ChunkVec3Ext;
+use crate::game::world::chunk::{CHUNK_SIZE, ChunkVec3Ext};
 use crate::game::world::world::World;
+use crate::graphics::mesh::InstancedMesh;
 use crate::input::camera_controller::CameraController;
 
 pub struct Client {
@@ -21,8 +24,8 @@ pub struct Client {
 
 impl Client {
   pub fn new(app: &mut App) -> Self {
-    let world_renderer = WorldRenderer::new(&app.graphics);
-    let camera_controller = CameraController::new(4.0, 1.0);
+    let world_renderer = WorldRenderer::new(&app);
+    let camera_controller = CameraController::new(20.0, 1.0);
 
     return Self {
       world_renderer,
@@ -55,6 +58,10 @@ impl Client {
     match event {
       WindowEvent::KeyboardInput { input, .. } => {
         if let Some(keycode) = input.virtual_keycode {
+          if keycode == VirtualKeyCode::B {
+            self.world_renderer.scene.camera.position = Vec3::new(72.0, 20.0, 0.0);
+          }
+
           self.camera_controller.on_keyboard(keycode, input.state);
         }
       }
@@ -81,16 +88,21 @@ impl Client {
 
       ServerPacket::InitialChunkDataServerPacket(InitialChunkDataServerPacket { chunk, position }) => {
         self.world.chunk_manager.chunks.insert(*position, chunk.clone());
-        self.world_renderer.chunk_renderer.chunk_meshes.clear();
+        // self.world_renderer.chunk_renderer.chunk_meshes.clear();
 
-        let render_distance = 2;
+        let vertical_render_distance = 4;
+        let horizontal_render_distance = 2;
         let chunk_pos = self.player.entity.state().position.to_chunk_pos();
-        for x in -render_distance .. render_distance {
-          for y in -render_distance .. render_distance {
-            for z in -render_distance .. render_distance {
+        for x in -horizontal_render_distance ..= horizontal_render_distance {
+          for y in -vertical_render_distance ..= vertical_render_distance {
+            for z in -horizontal_render_distance ..= horizontal_render_distance {
               let chunk_pos = IVec3::new(chunk_pos.x + x, chunk_pos.y + y, chunk_pos.z + z);
               let Some(chunk) = self.world.chunk_manager.chunks.get(&chunk_pos) else { continue };
-              self.world_renderer.chunk_renderer.add_chunk(chunk_pos, chunk.clone(), &app.graphics);
+              if !self.world_renderer.chunk_renderer.chunk_meshes.contains_key(&chunk_pos) {
+                self.world_renderer.chunk_sender.send((chunk_pos, chunk.blocks.clone())).unwrap();
+              }
+
+              // self.world_renderer.chunk_renderer.add_chunk(chunk_pos, chunk.clone(), &app.graphics);
             }
           }
         }

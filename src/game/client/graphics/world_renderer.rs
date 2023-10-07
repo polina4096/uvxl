@@ -1,7 +1,8 @@
-use glam::{UVec2};
+use std::sync::mpsc::{channel, Sender};
+use glam::{IVec3, UVec2};
 use wgpu::{CommandEncoder, TextureView};
 use winit::dpi::PhysicalSize;
-use crate::app::App;
+use crate::app::{App, UVxlEvent};
 use crate::game::client::graphics::chunk_renderer::ChunkRenderer;
 use crate::game::client::graphics::chunk_model::ChunkModel;
 use crate::game::world::BlockId;
@@ -20,11 +21,13 @@ pub struct WorldRenderer {
   pub pipeline     : wgpu::RenderPipeline,
   pub depth_buffer : DepthBuffer,
 
-  pub chunk_renderer    : ChunkRenderer,
+  pub chunk_renderer : ChunkRenderer,
+  pub chunk_sender   : Sender<(IVec3, Vec<BlockId>)>,
 }
 
 impl WorldRenderer {
-  pub fn new(graphics: &Graphics) -> Self {
+  pub fn new(app: &App) -> Self {
+    let graphics = &app.graphics;
 
     let atlas = Atlas::new(&[
       (BlockId::TEST, image::load_from_memory(include_bytes!("../../../../res/test.png")).unwrap().flipv()),
@@ -103,7 +106,13 @@ impl WorldRenderer {
       multiview: None,
     });
 
-    let chunk_renderer = ChunkRenderer::new(atlas);
+    let proxy = app.event_proxy.clone();
+    let sender = move |position: IVec3, data: Vec<Vertex>| {
+      proxy.send_event(UVxlEvent::MesherChunkDone(position, data)).unwrap();
+    };
+
+    let (chunk_sender, receiver) = channel::<(IVec3, Vec<BlockId>)>();
+    let chunk_renderer = ChunkRenderer::new(atlas, receiver, sender);
 
     return Self {
       pipeline,
@@ -111,6 +120,7 @@ impl WorldRenderer {
       depth_buffer,
 
       chunk_renderer,
+      chunk_sender,
     };
   }
 }

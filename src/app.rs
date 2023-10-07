@@ -1,22 +1,28 @@
 use std::fmt::Debug;
+use glam::IVec3;
 use log::warn;
 use winit::window::Window;
 use winit::event::{DeviceEvent, Event, WindowEvent};
 use winit::event_loop::{EventLoop, ControlFlow, EventLoopProxy};
 use winit::dpi::PhysicalSize;
 use crate::game::client::client::Client;
+use crate::game::client::graphics::chunk_model::ChunkModel;
 use crate::game::client::graphics::world_renderer::WorldRenderer;
 use crate::game::network::packet::{ClientPacket, ClientJoinClientPacket, ServerPacket};
 use crate::game::client::window::WindowStack;
 use crate::game::client::window::server_join::ServerJoinWindow;
+use crate::game::world::chunk::CHUNK_SIZE;
 use crate::graphics::context::Graphics;
 use crate::graphics::egui::EGuiContext;
+use crate::graphics::mesh::InstancedMesh;
+use crate::graphics::vertex::Vertex;
 use crate::input::input::Input;
 use crate::network::connection::Connection;
 
 pub enum UVxlEvent {
   ConnectionReady,
   IncomingPacket(ServerPacket),
+  MesherChunkDone(IVec3, Vec<Vertex>),
   MutateWindowStack(Box<dyn FnOnce(&mut App, &mut WindowStack)>),
 }
 
@@ -26,6 +32,7 @@ impl Debug for UVxlEvent {
       Self::ConnectionReady => f.write_str("ConnectionReady"),
       Self::IncomingPacket(..) => f.write_str("IncomingPacket"),
       Self::MutateWindowStack(..) => f.write_str("MutateWindowStack"),
+      Self::MesherChunkDone(..) => f.write_str("MesherChunkDone"),
     }
   }
 }
@@ -71,7 +78,7 @@ impl App {
     };
 
     let mut client = {
-      let world_renderer = WorldRenderer::new(&app.graphics);
+      let world_renderer = WorldRenderer::new(&app);
 
       Client::new(
         &mut app,
@@ -151,6 +158,11 @@ impl App {
 
             UVxlEvent::IncomingPacket(packet) => {
               client.packet(&mut app, &packet);
+            }
+
+            UVxlEvent::MesherChunkDone(position, data) => {
+              let chunk_mesh = InstancedMesh::new(&app.graphics, data, vec![ChunkModel { position: (position * CHUNK_SIZE as i32).as_vec3() }]);
+              client.world_renderer.chunk_renderer.chunk_meshes.insert(position, chunk_mesh);
             }
           }
         }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::mpsc::Receiver;
 use glam::{IVec3, Vec2, Vec3, Vec4};
 use wgpu::RenderPass;
 use crate::game::client::graphics::chunk_model::ChunkModel;
@@ -21,7 +22,17 @@ pub struct ChunkRenderer {
 }
 
 impl ChunkRenderer {
-  pub fn new(atlas: Atlas<BlockId>) -> Self {
+  pub fn new(atlas: Atlas<BlockId>, receiver: Receiver<(IVec3, Vec<BlockId>)>, sender: impl Fn(IVec3, Vec<Vertex>) + Send + 'static) -> Self {
+    fn gay<'a, T>(x: &T) -> &'a T { unsafe { std::mem::transmute(x) } }
+
+    let atlas_ref: &'static _ = gay(&atlas);
+    std::thread::spawn(move || {
+      while let Ok((position, chunk)) = receiver.recv() {
+        let vertices = mesher::culled::<CHUNK_SIZE>(&chunk, atlas_ref);
+        sender(position, vertices);
+      }
+    });
+
     return Self {
       atlas,
       chunk_meshes: HashMap::new(),
@@ -37,7 +48,7 @@ impl ChunkRenderer {
 
   pub fn add_chunk(&mut self, chunk_pos: IVec3, chunk: Chunk, graphics: &Graphics) {
     let vertices = mesher::culled::<CHUNK_SIZE>(&chunk.blocks, &self.atlas);
-    let chunk_mesh = InstancedMesh::new(graphics, vertices, vec![ChunkModel { position: Vec3::new(0.0, 0.0, 0.0) }]);
+    let chunk_mesh = InstancedMesh::new(graphics, vertices, vec![ChunkModel { position: (chunk_pos * CHUNK_SIZE as i32).as_vec3() }]);
     self.chunk_meshes.insert(chunk_pos, chunk_mesh);
   }
 
@@ -47,7 +58,7 @@ impl ChunkRenderer {
 }
 
 #[allow(dead_code)]
-mod mesher {
+pub mod mesher {
   use super::*;
 
   // Meshing algorithms
