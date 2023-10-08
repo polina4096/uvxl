@@ -1,4 +1,3 @@
-use std::sync::mpsc::{channel, Sender};
 use glam::{IVec3, UVec2};
 use wgpu::{CommandEncoder, TextureView};
 use winit::dpi::PhysicalSize;
@@ -9,7 +8,6 @@ use crate::game::world::BlockId;
 use crate::graphics::atlas::Atlas;
 use crate::graphics::bindable::Bindable;
 use crate::graphics::camera::{Camera3D, Projection, ProjectionPerspective, TagCamera3D};
-use crate::graphics::context::Graphics;
 use crate::graphics::depth_buffer::DepthBuffer;
 use crate::graphics::instance::Instance;
 use crate::graphics::layout::Layout;
@@ -22,7 +20,6 @@ pub struct WorldRenderer {
   pub depth_buffer : DepthBuffer,
 
   pub chunk_renderer : ChunkRenderer,
-  pub chunk_sender   : Sender<(IVec3, Vec<BlockId>)>,
 }
 
 impl WorldRenderer {
@@ -111,8 +108,7 @@ impl WorldRenderer {
       proxy.send_event(UVxlEvent::MesherChunkDone(position, data)).unwrap();
     };
 
-    let (chunk_sender, receiver) = channel::<(IVec3, Vec<BlockId>)>();
-    let chunk_renderer = ChunkRenderer::new(atlas, receiver, sender);
+    let chunk_renderer = ChunkRenderer::new(atlas, sender);
 
     return Self {
       pipeline,
@@ -120,7 +116,6 @@ impl WorldRenderer {
       depth_buffer,
 
       chunk_renderer,
-      chunk_sender,
     };
   }
 }

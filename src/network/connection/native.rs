@@ -15,6 +15,7 @@ pub struct Connection {
 impl Connection {
   pub fn new(address: SocketAddr, callback: EventLoopProxy<UVxlEvent>) -> Result<Self> {
     let mut socket = TcpStream::connect(address)?;
+    socket.set_nonblocking(false)?;
     let (sender, receiver) = channel::<Vec<u8>>();
 
     let callback_packet = callback.clone();
@@ -52,7 +53,7 @@ impl Connection {
 
     std::thread::spawn(move || {
       loop {
-        if let Ok(packet) = receiver.try_recv() {
+        if let Ok(packet) = receiver.recv() {
           while let Err(err) = socket.write_all(&packet) {
             error!("An error has occurred while sending a packet: {}", err);
           }

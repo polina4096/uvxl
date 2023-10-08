@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{channel, Sender};
 use glam::{IVec3, Vec2, Vec3, Vec4};
 use wgpu::RenderPass;
 use crate::game::client::graphics::chunk_model::ChunkModel;
@@ -17,18 +17,19 @@ use crate::util::side::Side;
 pub type ChunkMesh = InstancedMesh<Vertex, ChunkModel>;
 
 pub struct ChunkRenderer {
-  pub atlas        : Atlas<BlockId>,
+  pub atlas        : &'static Atlas<BlockId>,
   pub chunk_meshes : HashMap<IVec3, ChunkMesh>,
+  pub chunk_sender : Sender<(IVec3, Vec<BlockId>)>,
 }
 
 impl ChunkRenderer {
-  pub fn new(atlas: Atlas<BlockId>, receiver: Receiver<(IVec3, Vec<BlockId>)>, sender: impl Fn(IVec3, Vec<Vertex>) + Send + 'static) -> Self {
-    fn gay<'a, T>(x: &T) -> &'a T { unsafe { std::mem::transmute(x) } }
+  pub fn new(atlas: Atlas<BlockId>, sender: impl Fn(IVec3, Vec<Vertex>) + Send + 'static) -> Self {
+    let (chunk_sender, receiver) = channel::<(IVec3, Vec<BlockId>)>();
 
-    let atlas_ref: &'static _ = gay(&atlas);
+    let atlas: &_ = Box::leak(Box::new(atlas));
     std::thread::spawn(move || {
       while let Ok((position, chunk)) = receiver.recv() {
-        let vertices = mesher::culled::<CHUNK_SIZE>(&chunk, atlas_ref);
+        let vertices = mesher::culled::<CHUNK_SIZE>(&chunk, atlas);
         sender(position, vertices);
       }
     });
@@ -36,6 +37,7 @@ impl ChunkRenderer {
     return Self {
       atlas,
       chunk_meshes: HashMap::new(),
+      chunk_sender,
     };
   }
 

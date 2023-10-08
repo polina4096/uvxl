@@ -2,15 +2,12 @@ use glam::{IVec3, Vec3};
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, VirtualKeyCode, WindowEvent};
 use crate::app::App;
-use crate::game::client::graphics::chunk_model::ChunkModel;
-use crate::game::client::graphics::chunk_renderer::mesher;
 use crate::game::client::graphics::world_renderer::WorldRenderer;
 use crate::game::entity::Entity;
 use crate::game::network::packet::{InitialChunkDataServerPacket, ClientJoinServerPacket, ServerPacket, ClientPacket, ClientMovePacket};
 use crate::game::player::Player;
-use crate::game::world::chunk::{CHUNK_SIZE, ChunkVec3Ext};
+use crate::game::world::chunk::ChunkVec3Ext;
 use crate::game::world::world::World;
-use crate::graphics::mesh::InstancedMesh;
 use crate::input::camera_controller::CameraController;
 
 pub struct Client {
@@ -24,7 +21,7 @@ pub struct Client {
 
 impl Client {
   pub fn new(app: &mut App) -> Self {
-    let world_renderer = WorldRenderer::new(&app);
+    let world_renderer = WorldRenderer::new(app);
     let camera_controller = CameraController::new(20.0, 1.0);
 
     return Self {
@@ -99,7 +96,7 @@ impl Client {
               let chunk_pos = IVec3::new(chunk_pos.x + x, chunk_pos.y + y, chunk_pos.z + z);
               let Some(chunk) = self.world.chunk_manager.chunks.get(&chunk_pos) else { continue };
               if !self.world_renderer.chunk_renderer.chunk_meshes.contains_key(&chunk_pos) {
-                self.world_renderer.chunk_sender.send((chunk_pos, chunk.blocks.clone())).unwrap();
+                self.world_renderer.chunk_renderer.chunk_sender.send((chunk_pos, chunk.blocks.clone())).unwrap();
               }
 
               // self.world_renderer.chunk_renderer.add_chunk(chunk_pos, chunk.clone(), &app.graphics);

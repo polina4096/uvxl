@@ -171,9 +171,9 @@ impl Server {
             else { horizontal_render_distance - dx.abs() + 1 };
 
             for x in 0 ..= dx_capped {
-              for y in -vertical_render_distance ..= vertical_render_distance {
+              // for y in -vertical_render_distance ..= vertical_render_distance {
                 for z in -horizontal_render_distance..= horizontal_render_distance {
-                  let chunk_pos = IVec3::new(chunk_pos.x - (x + offset) * (dx / dx.abs()), chunk_pos.y , chunk_pos.z + z);
+                  let chunk_pos = IVec3::new(chunk_pos.x - (x + offset) * (dx / dx.abs()), chunk_pos.y, chunk_pos.z + z);
                   let chunk = chunk_manager.chunks.get(&chunk_pos).cloned()
                     .unwrap_or_else(|| {
                       let chunk = generate_chunk((chunk_pos.x + chunk_pos.z) % 2 == 0);
@@ -188,13 +188,43 @@ impl Server {
 
                   peer.tx.unbounded_send(Message::Binary(packet))?;
                 }
-              }
+              // }
             }
 
             info!("{} moved to {:?} @ {:?}", peer.player.name, position, chunk_pos);
           }
 
           [dx, dy, dz] if dy != 0 => {
+            // peer.last_chunk = chunk_pos;
+            //
+            // let chunk_manager = &mut self.world.lock().unwrap().chunk_manager;
+            //
+            // let dy_capped = dy.abs().min(vertical_render_distance * 2);
+            // let offset = if dy.abs() > vertical_render_distance { -dy_capped / 2 }
+            // else { vertical_render_distance - dy.abs() + 1 };
+            //
+            // for x in -horizontal_render_distance ..= horizontal_render_distance {
+            //   for y in 0 ..= dy_capped {
+            //     for z in -horizontal_render_distance ..= horizontal_render_distance {
+            //       let chunk_pos = IVec3::new(chunk_pos.x + x, chunk_pos.y - (y + offset) * (dy / dy.abs()), chunk_pos.z + z);
+            //       let chunk = chunk_manager.chunks.get(&chunk_pos).cloned()
+            //         .unwrap_or_else(|| {
+            //           let chunk = generate_chunk((chunk_pos.x + chunk_pos.z) % 2 == 0);
+            //           chunk_manager.chunks.insert(chunk_pos, chunk.clone());
+            //           return chunk.clone();
+            //         });
+            //
+            //       let packet = bincode::serialize(&ServerPacket::InitialChunkDataServerPacket(InitialChunkDataServerPacket {
+            //         chunk: chunk,
+            //         position: IVec3::new(chunk_pos.x, chunk_pos.y, chunk_pos.z),
+            //       }))?;
+            //
+            //       peer.tx.unbounded_send(Message::Binary(packet))?;
+            //     }
+            //   }
+            // }
+            //
+            // info!("{} moved to {:?} @ {:?}", peer.player.name, position, chunk_pos);
           }
 
           [dx, dy, dz] if dz != 0 => {
@@ -207,7 +237,7 @@ impl Server {
             else { horizontal_render_distance - dz.abs() + 1 };
 
             for x in -horizontal_render_distance..=horizontal_render_distance {
-              for y in -vertical_render_distance ..= vertical_render_distance {
+              // for y in -vertical_render_distance ..= vertical_render_distance {
                 for z in 0 ..= dz_capped {
                   let chunk_pos = IVec3::new(chunk_pos.x + x, chunk_pos.y, chunk_pos.z - (z + offset) * (dz / dz.abs()));
                   let chunk = chunk_manager.chunks.get(&chunk_pos).cloned()
@@ -224,7 +254,7 @@ impl Server {
 
                   peer.tx.unbounded_send(Message::Binary(packet))?;
                 }
-              }
+              // }
             }
 
             info!("{} moved to {:?} @ {:?}", peer.player.name, position, chunk_pos);
