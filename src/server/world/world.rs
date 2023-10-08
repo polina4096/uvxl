@@ -1,13 +1,13 @@
-use crate::server::world::chunk_manager::ChunkManager;
+use crate::server::world::chunk_manager::ServerChunkManager;
 
-pub struct World {
-  pub chunk_manager: ChunkManager,
+pub struct ServerWorld {
+  pub chunk_manager: ServerChunkManager,
 }
 
-impl Default for World {
+impl Default for ServerWorld {
   fn default() -> Self {
     return Self {
-      chunk_manager: ChunkManager::default(),
+      chunk_manager: ServerChunkManager::default(),
     };
   }
 }

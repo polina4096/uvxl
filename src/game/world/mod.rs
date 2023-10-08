@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 pub mod world;
 pub mod chunk;
 pub mod chunk_manager;
+pub mod worldgen;
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd, Debug, Serialize, Deserialize)]
 pub struct BlockId(u16);
