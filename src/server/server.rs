@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Mutex};
+use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
 
 use futures_util::{future, pin_mut, stream::TryStreamExt, StreamExt};
@@ -20,7 +20,7 @@ use crate::game::network::packet::{ClientPacket, InitialChunkDataServerPacket, C
 use crate::game::world::chunk::ChunkVec3Ext;
 use crate::game::world::worldgen::worldgen::WorldGen;
 use crate::server::player::{ServerPlayer, Tx};
-use crate::server::server_settings::{ServerSettings};
+use crate::server::server_settings::ServerSettings;
 use crate::server::world::chunk_manager::ServerChunkManager;
 use crate::server::world::world::ServerWorld;
 
@@ -154,56 +154,25 @@ impl Server {
         };
 
         match chunk_delta.to_array() {
-          [dx, dy, dz] if dx != 0 => {
+          [dx, dy, dz] if dx != 0 || dy != 0 || dz != 0 => {
             peer.last_chunk = chunk_pos;
 
             let dx_capped = dx.abs().min(horizontal_render_distance * 2);
-            let offset = if dx.abs() > horizontal_render_distance
-                 { -dx_capped / 2 }
-            else { horizontal_render_distance - dx.abs() + 1 };
-
-            for x in 0 ..= dx_capped {
-              for y in -vertical_render_distance ..= vertical_render_distance {
-                for z in -horizontal_render_distance ..= horizontal_render_distance {
-                  let chunk_pos = IVec3::new(chunk_pos.x - (x + offset) * (dx / dx.abs()), chunk_pos.y + y, chunk_pos.z + z);
-                  send_chunk(chunk_pos, &peer.tx)?;
-                }
-              }
-            }
-
-            info!("{} moved to {:?} @ {:?}", peer.player.name, position, chunk_pos);
-          }
-
-          [dx, dy, dz] if dy != 0 => {
-            // peer.last_chunk = chunk_pos;
-            //
-            // let dy_capped = dy.abs().min(vertical_render_distance * 2);
-            // let offset = if dy.abs() > vertical_render_distance { -dy_capped / 2 }
-            // else { vertical_render_distance - dy.abs() + 1 };
-            //
-            // for x in -horizontal_render_distance ..= horizontal_render_distance {
-            //   for y in 0 ..= dy_capped {
-            //     for z in -horizontal_render_distance ..= horizontal_render_distance {
-            //       let chunk_pos = IVec3::new(chunk_pos.x + x, chunk_pos.y - (y + offset) * (dy / dy.abs()), chunk_pos.z + z);
-            //       send_chunk(chunk_pos, &peer.tx)?;
-            //     }
-            //   }
-            // }
-
-            // info!("{} moved to {:?} @ {:?}", peer.player.name, position, chunk_pos);
-          }
-
-          [dx, dy, dz] if dz != 0 => {
-            peer.last_chunk = chunk_pos;
-
             let dz_capped = dz.abs().min(horizontal_render_distance * 2);
-            let offset = if dz.abs() > horizontal_render_distance { -dz_capped / 2 }
-            else { horizontal_render_distance - dz.abs() + 1 };
+            let dy_capped = dy.abs().min(vertical_render_distance * 2);
+            let x_offset = if dx.abs() > horizontal_render_distance { -dx_capped / 2 } else { horizontal_render_distance - dx.abs() + 1 };
+            let z_offset = if dz.abs() > horizontal_render_distance { -dz_capped / 2 } else { horizontal_render_distance - dz.abs() + 1 };
+            let y_offset = if dy.abs() > vertical_render_distance { -dy_capped / 2 } else { vertical_render_distance - dy.abs() + 1 };
 
-            for x in -horizontal_render_distance ..=horizontal_render_distance {
-              for y in -vertical_render_distance ..= vertical_render_distance {
-                for z in 0 ..= dz_capped {
-                  let chunk_pos = IVec3::new(chunk_pos.x + x, chunk_pos.y + y, chunk_pos.z - (z + offset) * (dz / dz.abs()));
+            for x in if dx != 0 { 0 ..= dx_capped } else { -horizontal_render_distance ..= horizontal_render_distance } {
+              for y in if dy != 0 { 0 ..= dy_capped } else { -vertical_render_distance ..= vertical_render_distance } {
+                for z in if dz != 0 { 0 ..= dz_capped } else { -horizontal_render_distance ..= horizontal_render_distance } {
+                  let chunk_pos = IVec3::new(
+                    chunk_pos.x - if dx != 0 { (x + x_offset) * (dx / dx.abs()) } else { -x },
+                    chunk_pos.y - if dy != 0 { (y + y_offset) * (dy / dy.abs()) } else { -y },
+                    chunk_pos.z - if dz != 0 { (z + z_offset) * (dz / dz.abs()) } else { -z }
+                  );
+
                   send_chunk(chunk_pos, &peer.tx)?;
                 }
               }

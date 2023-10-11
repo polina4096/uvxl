@@ -1,6 +1,6 @@
-use glam::{IVec3, Vec3};
+use glam::IVec3;
 use winit::dpi::PhysicalSize;
-use winit::event::{DeviceEvent, VirtualKeyCode, WindowEvent};
+use winit::event::{DeviceEvent, WindowEvent};
 use crate::app::App;
 use crate::game::client::graphics::world_renderer::WorldRenderer;
 use crate::game::entity::Entity;
@@ -55,10 +55,6 @@ impl Client {
     match event {
       WindowEvent::KeyboardInput { input, .. } => {
         if let Some(keycode) = input.virtual_keycode {
-          if keycode == VirtualKeyCode::B {
-            self.world_renderer.scene.camera.position = Vec3::new(72.0, 20.0, 0.0);
-          }
-
           self.camera_controller.on_keyboard(keycode, input.state);
         }
       }
