@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
-use glam::{IVec3, Vec2, Vec3, Vec4};
+use glam::{IVec3, Vec2, vec3, Vec4};
 use wgpu::RenderPass;
 use crate::game::client::graphics::chunk_model::ChunkModel;
 use crate::game::world::BlockId;
@@ -49,7 +49,7 @@ impl ChunkRenderer {
   }
 
   pub fn add_chunk(&mut self, chunk_pos: IVec3, chunk: Chunk, graphics: &Graphics) {
-    let vertices = mesher::culled::<CHUNK_SIZE>(&chunk.blocks, &self.atlas);
+    let vertices = mesher::culled::<CHUNK_SIZE>(&chunk.blocks, self.atlas);
     let chunk_mesh = InstancedMesh::new(graphics, vertices, vec![ChunkModel { position: (chunk_pos * CHUNK_SIZE as i32).as_vec3() }]);
     self.chunk_meshes.insert(chunk_pos, chunk_mesh);
   }
@@ -129,58 +129,58 @@ pub const fn block_face(side: Side, i: isize, j: isize, k: isize, uv: Vec4) -> [
   #[allow(clippy::identity_op)]
   return match side {
     Side::Top => [
-      Vertex { pos: Vec3::new((0 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, oy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
+      Vertex { pos: vec3((0 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
 
-      Vertex { pos: Vec3::new((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, sy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
+      Vertex { pos: vec3((1 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
     ],
     Side::Bottom => [
-      Vertex { pos: Vec3::new((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, sy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, sy) },
+      Vertex { pos: vec3((1 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
 
-      Vertex { pos: Vec3::new((1 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, oy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, oy) },
+      Vertex { pos: vec3((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
     ],
     Side::Right => [
-      Vertex { pos: Vec3::new((0 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, oy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, oy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
 
-      Vertex { pos: Vec3::new((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, sy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, oy) },
     ],
     Side::Left => [
-      Vertex { pos: Vec3::new((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, oy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, sy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, oy) },
+      Vertex { pos: vec3((0 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, sy) },
+      Vertex { pos: vec3((1 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, sy) },
 
-      Vertex { pos: Vec3::new((1 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, sy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, sy) },
+      Vertex { pos: vec3((1 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
+      Vertex { pos: vec3((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, oy) },
     ],
     Side::Front => [
-      Vertex { pos: Vec3::new((1 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, oy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, sy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, sy) },
+      Vertex { pos: vec3((1 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, sy) },
+      Vertex { pos: vec3((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, sy) },
 
-      Vertex { pos: Vec3::new((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, sy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, oy) },
-      Vertex { pos: Vec3::new((1 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, sy) },
+      Vertex { pos: vec3((1 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(ox, oy) },
+      Vertex { pos: vec3((1 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(sx, oy) },
     ],
     Side::Back => [
-      Vertex { pos: Vec3::new((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, oy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
+      Vertex { pos: vec3((0 + i) as f32, (0 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, oy) },
+      Vertex { pos: vec3((0 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
 
-      Vertex { pos: Vec3::new((0 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, sy) },
-      Vertex { pos: Vec3::new((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
+      Vertex { pos: vec3((0 + i) as f32, (1 + j) as f32, (1 + k) as f32), uv: Vec2::new(sx, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (1 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, sy) },
+      Vertex { pos: vec3((0 + i) as f32, (0 + j) as f32, (0 + k) as f32), uv: Vec2::new(ox, oy) },
     ],
   };
 }

@@ -1,6 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 use std::time::Duration;
-use glam::Vec3;
+use glam::vec3;
 use winit::event::{ElementState, VirtualKeyCode};
 use crate::graphics::camera::Camera;
 
@@ -59,8 +59,8 @@ impl CameraController {
 
     // move forward/backward and left/right
     let (yaw_sin, yaw_cos) = camera.yaw.sin_cos();
-    let forward = Vec3::new(yaw_cos, 0.0, yaw_sin).normalize();
-    let right = Vec3::new(-yaw_sin, 0.0, yaw_cos).normalize();
+    let forward = vec3(yaw_cos, 0.0, yaw_sin).normalize();
+    let right = vec3(-yaw_sin, 0.0, yaw_cos).normalize();
     camera.position += forward * (self.amount_forward - self.amount_backward) * self.speed * dt;
     camera.position += right * (self.amount_right - self.amount_left) * self.speed * dt;
 

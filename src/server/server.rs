@@ -11,12 +11,12 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 use anyhow::Result;
 use dashmap::DashMap;
 use futures_channel::mpsc::unbounded;
-use glam::{IVec3, Vec3};
+use glam::{IVec3, ivec3, vec3};
 use log::info;
 use tokio_util::bytes::Bytes;
 use tokio_util::codec::{BytesCodec, FramedRead, FramedWrite, LengthDelimitedCodec};
 use crate::game::entity::Entity;
-use crate::game::network::packet::{ClientPacket, InitialChunkDataServerPacket, ClientJoinServerPacket, ServerPacket, ClientMovePacket};
+use crate::game::network::packet::{ClientPacket, InitialChunkDataServerPacket, ClientJoinServerPacket, ServerPacket, ClientMovePacket, PlayerJoinServerPacket, PlayerMoveServerPacket};
 use crate::game::world::chunk::ChunkVec3Ext;
 use crate::game::world::worldgen::worldgen::WorldGen;
 use crate::server::player::{ServerPlayer, Tx};
@@ -101,21 +101,32 @@ impl Server {
 
     match packet {
       ClientPacket::ClientJoinClientPacket(packet) => {
+        let player_data = self.peers.iter()
+          .filter(|x| x.player.name != "")
+          .map(|x| (x.player.name.clone(), x.player.entity.state().position))
+          .collect::<Vec<_>>();
+
         for mut peer in self.peers.iter_mut() {
           let addr = peer.key();
           if *addr != peer_addr {
             // notify others about the new player
+            let packet = bincode::serialize(&ServerPacket::PlayerJoinServerPacket(PlayerJoinServerPacket {
+              name: packet.name.clone(),
+              position: vec3(0.0, 0.0, 0.0),
+            }))?;
 
+            peer.tx.unbounded_send(Message::Binary(packet))?;
           } else {
             peer.player.name = packet.name.clone();
             let state = peer.player.entity.state_mut();
-            state.position = Vec3::new(16.0, 12.0, 16.0);
+            state.position = vec3(16.0, 12.0, 16.0);
             state.title = Some(packet.name.clone());
 
             // respond to the client
             let packet = bincode::serialize(&ServerPacket::ClientJoinServerPacket(ClientJoinServerPacket {
               success: true,
               reason: None,
+              players: player_data.clone(),
             }))?;
 
             peer.tx.unbounded_send(Message::Binary(packet))?;
@@ -124,64 +135,78 @@ impl Server {
       }
 
       ClientPacket::ClientMovePacket(ClientMovePacket { position }) => {
-        let mut peer = self.peers.get_mut(&peer_addr).unwrap();
-        let state = peer.player.entity.state_mut();
-        state.position = position;
+        let name = self.peers.get(&peer_addr).unwrap().player.name.clone();
+        for mut peer in self.peers.iter_mut() {
+          let addr = peer.key();
+          if *addr != peer_addr {
+            // notify others about player movement
+            let packet = bincode::serialize(&ServerPacket::PlayerMoveServerPacket(PlayerMoveServerPacket {
+              name: name.clone(),
+              position: position,
+            }))?;
 
-        let chunk_pos = position.to_chunk_pos();
-        let chunk_delta = peer.last_chunk - chunk_pos;
+            peer.tx.unbounded_send(Message::Binary(packet))?;
+          } else {
+            let state = peer.player.entity.state_mut();
+            state.position = position;
 
-        let vertical_render_distance = self.settings.vertical_render_distance.load(Ordering::Relaxed) as i32;
-        let horizontal_render_distance = self.settings.horizontal_render_distance.load(Ordering::Relaxed) as i32;
+            // send new chunks
+            let chunk_pos = position.to_chunk_pos();
+            let chunk_delta = peer.last_chunk - chunk_pos;
 
-        let chunk_manager = &self.world.chunk_manager;
-        let send_chunk = |chunk_pos: IVec3, tx: &Tx| -> Result<()> {
-          let chunk = chunk_manager.chunks.get(&chunk_pos).map(|x| x.clone())
-            .unwrap_or_else(|| {
-              let chunk = self.worldgen.generate(chunk_pos);
-              chunk_manager.chunks.insert(chunk_pos, chunk.clone());
-              return chunk;
-            });
+            let vertical_render_distance = self.settings.vertical_render_distance.load(Ordering::Relaxed) as i32;
+            let horizontal_render_distance = self.settings.horizontal_render_distance.load(Ordering::Relaxed) as i32;
 
-          let packet = bincode::serialize(&ServerPacket::InitialChunkDataServerPacket(InitialChunkDataServerPacket {
-            chunk: chunk,
-            position: IVec3::new(chunk_pos.x, chunk_pos.y, chunk_pos.z),
-          }))?;
+            let chunk_manager = &self.world.chunk_manager;
+            let send_chunk = |chunk_pos: IVec3, tx: &Tx| -> Result<()> {
+              let chunk = chunk_manager.chunks.get(&chunk_pos).map(|x| x.clone())
+                .unwrap_or_else(|| {
+                  let chunk = self.worldgen.generate(chunk_pos);
+                  chunk_manager.chunks.insert(chunk_pos, chunk.clone());
+                  return chunk;
+                });
 
-          tx.unbounded_send(Message::Binary(packet))?;
+              let packet = bincode::serialize(&ServerPacket::InitialChunkDataServerPacket(InitialChunkDataServerPacket {
+                chunk: chunk,
+                position: ivec3(chunk_pos.x, chunk_pos.y, chunk_pos.z),
+              }))?;
 
-          return Ok(());
-        };
+              tx.unbounded_send(Message::Binary(packet))?;
 
-        match chunk_delta.to_array() {
-          [dx, dy, dz] if dx != 0 || dy != 0 || dz != 0 => {
-            peer.last_chunk = chunk_pos;
+              return Ok(());
+            };
 
-            let dx_capped = dx.abs().min(horizontal_render_distance * 2);
-            let dz_capped = dz.abs().min(horizontal_render_distance * 2);
-            let dy_capped = dy.abs().min(vertical_render_distance * 2);
-            let x_offset = if dx.abs() > horizontal_render_distance { -dx_capped / 2 } else { horizontal_render_distance - dx.abs() + 1 };
-            let z_offset = if dz.abs() > horizontal_render_distance { -dz_capped / 2 } else { horizontal_render_distance - dz.abs() + 1 };
-            let y_offset = if dy.abs() > vertical_render_distance { -dy_capped / 2 } else { vertical_render_distance - dy.abs() + 1 };
+            match chunk_delta.to_array() {
+              [dx, dy, dz] if dx != 0 || dy != 0 || dz != 0 => {
+                peer.last_chunk = chunk_pos;
 
-            for x in if dx != 0 { 0 ..= dx_capped } else { -horizontal_render_distance ..= horizontal_render_distance } {
-              for y in if dy != 0 { 0 ..= dy_capped } else { -vertical_render_distance ..= vertical_render_distance } {
-                for z in if dz != 0 { 0 ..= dz_capped } else { -horizontal_render_distance ..= horizontal_render_distance } {
-                  let chunk_pos = IVec3::new(
-                    chunk_pos.x - if dx != 0 { (x + x_offset) * (dx / dx.abs()) } else { -x },
-                    chunk_pos.y - if dy != 0 { (y + y_offset) * (dy / dy.abs()) } else { -y },
-                    chunk_pos.z - if dz != 0 { (z + z_offset) * (dz / dz.abs()) } else { -z }
-                  );
+                let dx_capped = dx.abs().min(horizontal_render_distance * 2);
+                let dz_capped = dz.abs().min(horizontal_render_distance * 2);
+                let dy_capped = dy.abs().min(vertical_render_distance * 2);
+                let x_offset = if dx.abs() > horizontal_render_distance { -dx_capped / 2 } else { horizontal_render_distance - dx.abs() + 1 };
+                let z_offset = if dz.abs() > horizontal_render_distance { -dz_capped / 2 } else { horizontal_render_distance - dz.abs() + 1 };
+                let y_offset = if dy.abs() > vertical_render_distance { -dy_capped / 2 } else { vertical_render_distance - dy.abs() + 1 };
 
-                  send_chunk(chunk_pos, &peer.tx)?;
+                for x in if dx != 0 { 0 ..= dx_capped } else { -horizontal_render_distance ..= horizontal_render_distance } {
+                  for y in if dy != 0 { 0 ..= dy_capped } else { -vertical_render_distance ..= vertical_render_distance } {
+                    for z in if dz != 0 { 0 ..= dz_capped } else { -horizontal_render_distance ..= horizontal_render_distance } {
+                      let chunk_pos = ivec3(
+                        chunk_pos.x - if dx != 0 { (x + x_offset) * (dx / dx.abs()) } else { -x },
+                        chunk_pos.y - if dy != 0 { (y + y_offset) * (dy / dy.abs()) } else { -y },
+                        chunk_pos.z - if dz != 0 { (z + z_offset) * (dz / dz.abs()) } else { -z }
+                      );
+
+                      send_chunk(chunk_pos, &peer.tx)?;
+                    }
+                  }
                 }
+
+                info!("{} moved to {:?} @ {:?}", peer.player.name, position, chunk_pos);
               }
+
+              _ => { }
             }
-
-            info!("{} moved to {:?} @ {:?}", peer.player.name, position, chunk_pos);
           }
-
-          _ => { }
         }
       }
     }

@@ -4,6 +4,7 @@ use winit::dpi::PhysicalSize;
 use crate::app::{App, UVxlEvent};
 use crate::game::client::graphics::chunk_renderer::ChunkRenderer;
 use crate::game::client::graphics::chunk_model::ChunkModel;
+use crate::game::client::graphics::entity_renderer::EntityRenderer;
 use crate::game::world::BlockId;
 use crate::graphics::atlas::Atlas;
 use crate::graphics::bindable::Bindable;
@@ -19,7 +20,8 @@ pub struct WorldRenderer {
   pub pipeline     : wgpu::RenderPipeline,
   pub depth_buffer : DepthBuffer,
 
-  pub chunk_renderer : ChunkRenderer,
+  pub chunk_renderer  : ChunkRenderer,
+  pub entity_renderer : EntityRenderer,
 }
 
 impl WorldRenderer {
@@ -45,7 +47,7 @@ impl WorldRenderer {
       Camera3D::default()
     );
 
-    let shader = graphics.device.create_shader_module(wgpu::include_wgsl!("chunk.wgsl"));
+    let shader = graphics.device.create_shader_module(wgpu::include_wgsl!("core.wgsl"));
     let render_pipeline_layout = graphics.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
       label: Some("Render Pipeline Layout"),
       bind_group_layouts: &[
@@ -109,6 +111,7 @@ impl WorldRenderer {
     };
 
     let chunk_renderer = ChunkRenderer::new(atlas, sender);
+    let entity_renderer = EntityRenderer::new(graphics);
 
     return Self {
       pipeline,
@@ -116,6 +119,7 @@ impl WorldRenderer {
       depth_buffer,
 
       chunk_renderer,
+      entity_renderer,
     };
   }
 }
@@ -154,6 +158,7 @@ impl WorldRenderer {
     self.scene.bind(&mut render_pass, 0);
 
     self.chunk_renderer.render(&mut render_pass, 1);
+    self.entity_renderer.render(&mut render_pass, 1);
   }
 
   pub fn resize(&mut self, app: &mut App, size: PhysicalSize<u32>) {

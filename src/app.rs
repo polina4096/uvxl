@@ -24,6 +24,8 @@ pub enum UVxlEvent {
   IncomingPacket(ServerPacket),
   MesherChunkDone(IVec3, Vec<Vertex>),
   MutateWindowStack(Box<dyn FnOnce(&mut App, &mut WindowStack)>),
+
+  SetClientName(String),
 }
 
 impl Debug for UVxlEvent {
@@ -33,6 +35,7 @@ impl Debug for UVxlEvent {
       Self::IncomingPacket(..) => f.write_str("IncomingPacket"),
       Self::MutateWindowStack(..) => f.write_str("MutateWindowStack"),
       Self::MesherChunkDone(..) => f.write_str("MesherChunkDone"),
+      Self::SetClientName(..) => f.write_str("SetClientName"),
     }
   }
 }
@@ -147,8 +150,9 @@ impl App {
         Event::UserEvent(event) => {
           match event {
             UVxlEvent::ConnectionReady => {
+              dbg!(&client.player.name);
               app.connection.as_mut().unwrap().send(ClientPacket::ClientJoinClientPacket(ClientJoinClientPacket {
-                name: String::from("test"),
+                name: client.player.name.clone(),
               })).unwrap();
             }
 
@@ -163,6 +167,11 @@ impl App {
             UVxlEvent::MesherChunkDone(position, data) => {
               let chunk_mesh = InstancedMesh::new(&app.graphics, data, vec![ChunkModel { position: (position * CHUNK_SIZE as i32).as_vec3() }]);
               client.world_renderer.chunk_renderer.chunk_meshes.insert(position, chunk_mesh);
+            }
+
+            UVxlEvent::SetClientName(name) => {
+              client.player.name = name;
+              dbg!(&client.player.name);
             }
           }
         }

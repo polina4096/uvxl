@@ -11,6 +11,8 @@ pub trait Respondable {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ServerPacket {
   ClientJoinServerPacket(ClientJoinServerPacket),
+  PlayerJoinServerPacket(PlayerJoinServerPacket),
+  PlayerMoveServerPacket(PlayerMoveServerPacket),
   InitialChunkDataServerPacket(InitialChunkDataServerPacket),
 }
 
@@ -18,6 +20,19 @@ pub enum ServerPacket {
 pub struct ClientJoinServerPacket {
   pub success : bool,
   pub reason  : Option<String>,
+  pub players : Vec<(String, Vec3)>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PlayerJoinServerPacket {
+  pub name: String,
+  pub position: Vec3,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PlayerMoveServerPacket {
+  pub name: String,
+  pub position: Vec3,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

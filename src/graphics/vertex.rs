@@ -1,4 +1,4 @@
-use glam::{Vec3, Vec2};
+use glam::{Vec3, Vec2, vec3};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -29,12 +29,12 @@ impl Vertex {
 
     pub fn vertices_quad(min: f32, max: f32) -> Vec<Self> {
         return vec![
-            Vertex { pos: Vec3::new(min, min, 1.0), uv: Vec2::new(0.0, 0.0) },
-            Vertex { pos: Vec3::new(min, max, 1.0), uv: Vec2::new(0.0, 1.0) },
-            Vertex { pos: Vec3::new(max, max, 1.0), uv: Vec2::new(1.0, 1.0) },
-            Vertex { pos: Vec3::new(max, max, 1.0), uv: Vec2::new(1.0, 1.0) },
-            Vertex { pos: Vec3::new(max, min, 1.0), uv: Vec2::new(1.0, 0.0) },
-            Vertex { pos: Vec3::new(min, min, 1.0), uv: Vec2::new(0.0, 0.0) },
+            Vertex { pos: vec3(min, min, 1.0), uv: Vec2::new(0.0, 0.0) },
+            Vertex { pos: vec3(min, max, 1.0), uv: Vec2::new(0.0, 1.0) },
+            Vertex { pos: vec3(max, max, 1.0), uv: Vec2::new(1.0, 1.0) },
+            Vertex { pos: vec3(max, max, 1.0), uv: Vec2::new(1.0, 1.0) },
+            Vertex { pos: vec3(max, min, 1.0), uv: Vec2::new(1.0, 0.0) },
+            Vertex { pos: vec3(min, min, 1.0), uv: Vec2::new(0.0, 0.0) },
         ];
     }
 }

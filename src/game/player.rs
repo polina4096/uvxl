@@ -1,5 +1,6 @@
 use crate::game::entity::player::EntityPlayer;
 
+#[derive(Debug)]
 pub struct Player {
   pub name: String,
   pub entity: EntityPlayer,

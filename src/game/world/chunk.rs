@@ -1,4 +1,4 @@
-use glam::{IVec3, Vec3};
+use glam::{IVec3, ivec3, Vec3};
 use serde::{Deserialize, Serialize};
 use crate::game::world::BlockId;
 
@@ -33,7 +33,7 @@ pub trait ChunkVec3Ext {
 
 impl ChunkVec3Ext for Vec3 {
   fn to_chunk_pos(&self) -> IVec3 {
-    return IVec3::new(
+    return ivec3(
       (self.x / CHUNK_SIZE as f32).floor() as i32,
       (self.y / CHUNK_SIZE as f32).floor() as i32,
       (self.z / CHUNK_SIZE as f32).floor() as i32,

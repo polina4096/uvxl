@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use glam::{Mat4, Vec3, Quat};
+use glam::{Mat4, Vec3, Quat, vec3};
 
 pub trait Transformation {
   fn apply(&self) -> Mat4;
@@ -38,8 +38,8 @@ impl<T> Camera<T> {
 impl<T> Default for Camera<T> {
   fn default() -> Self {
     return Self {
-      position: Vec3::new(0.0, 0.0, 0.0),
-      scale: Vec3::new(1.0, 1.0, 1.0),
+      position: vec3(0.0, 0.0, 0.0),
+      scale: vec3(1.0, 1.0, 1.0),
       // rotation: Quat::default(),
       pitch: 0.0,
       yaw: 0.0,
@@ -50,7 +50,7 @@ impl<T> Default for Camera<T> {
 
 impl Transformation for Camera<TagCamera2D> {
   fn apply(&self) -> Mat4 {
-    let model = Mat4::from_scale(Vec3::new(self.scale.x, self.scale.y, self.scale.z))
+    let model = Mat4::from_scale(vec3(self.scale.x, self.scale.y, self.scale.z))
               * Mat4::from_translation(self.position);
               // * Mat4::from_quat(self.rotation);
 
@@ -65,7 +65,7 @@ impl Transformation for Camera<TagCamera3D> {
 
     return Mat4::look_to_rh(
       self.position,
-      Vec3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw).normalize(),
+      vec3(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw).normalize(),
       Vec3::Y
     );
   }
