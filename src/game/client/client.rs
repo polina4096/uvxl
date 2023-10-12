@@ -1,17 +1,17 @@
 use glam::{ivec3, Quat, vec3};
-use log::info;
+use log::error;
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, WindowEvent};
-use crate::app::App;
+use crate::app::{App, UVxlEvent};
 use crate::game::client::graphics::entity_model::EntityModel;
 use crate::game::client::graphics::world_renderer::WorldRenderer;
+use crate::game::client::window::WindowId;
 use crate::game::entity::{Entity, EntityState};
 use crate::game::entity::player::EntityPlayer;
-use crate::game::network::packet::{InitialChunkDataServerPacket, ClientJoinServerPacket, ServerPacket, ClientPacket, ClientMovePacket, PlayerJoinServerPacket, PlayerMoveServerPacket};
+use crate::game::network::packet::{InitialChunkDataServerPacket, ClientJoinSuccessServerPacket, ServerPacket, ClientPacket, ClientMovePacket, PlayerJoinServerPacket, PlayerMoveServerPacket, ErrorServerPacket};
 use crate::game::player::Player;
 use crate::game::world::chunk::ChunkVec3Ext;
 use crate::game::world::world::World;
-use crate::graphics::instance::Instance;
 use crate::input::camera_controller::CameraController;
 
 pub struct Client {
@@ -79,24 +79,28 @@ impl Client {
 
   pub fn packet(&mut self, app: &mut App, packet: &ServerPacket) {
     match packet {
-      ServerPacket::ClientJoinServerPacket(ClientJoinServerPacket { success, reason, players }) => {
+      ServerPacket::ClientJoinSuccessServerPacket(ClientJoinSuccessServerPacket { uuid, position, players }) => {
+        if let Err(err) = app.event_proxy.send_event(UVxlEvent::MutateWindowStack(Box::new(move |app, stack| {
+          stack.retain(|window| window.id() != WindowId::ServerJoin);
+        }))) { error!("Failed to send UVxl event: {}", err); }
+
+        self.player.uuid = *uuid;
+
         for player in players {
           let entity = EntityPlayer::new(
             EntityState {
-              title: Some(player.0.clone()),
-              position: player.1,
+              title: Some(player.name.clone()),
+              position: player.position,
               velocity: vec3(0.0, 0.0, 0.0),
               rotation: Quat::IDENTITY,
             }
           );
 
-          self.world.players.push(Player { name: player.0.clone(), entity });
+          self.world.players.push(Player { uuid: player.uuid, name: player.name.clone(), entity });
+
           self.world_renderer.entity_renderer.entities_mesh.instances = self.world.players.iter()
             .map(|x| EntityModel { position: x.entity.state().position }).collect();
-
           self.world_renderer.entity_renderer.entities_mesh.bake_instances(&app.graphics);
-          self.world_renderer.entity_renderer.entities_mesh.update_instances(
-            bytemuck::cast_slice(self.world_renderer.entity_renderer.entities_mesh.instances.iter().map(Instance::bake).collect::<Vec<_>>().as_slice()), &app.graphics.queue);
         }
       }
 
@@ -122,7 +126,7 @@ impl Client {
         }
       }
 
-      ServerPacket::PlayerJoinServerPacket(PlayerJoinServerPacket { name, position }) => {
+      ServerPacket::PlayerJoinServerPacket(PlayerJoinServerPacket { uuid, name, position }) => {
         dbg!(&name);
 
         let entity = EntityPlayer::new(
@@ -134,29 +138,27 @@ impl Client {
           }
         );
 
-        self.world.players.push(Player { name: name.clone(), entity });
+        self.world.players.push(Player { uuid: *uuid, name: name.clone(), entity });
 
         self.world_renderer.entity_renderer.entities_mesh.instances = self.world.players.iter()
           .map(|x| EntityModel { position: x.entity.state().position }).collect();
-
         self.world_renderer.entity_renderer.entities_mesh.bake_instances(&app.graphics);
-        self.world_renderer.entity_renderer.entities_mesh.update_instances(
-          bytemuck::cast_slice(self.world_renderer.entity_renderer.entities_mesh.instances.iter().map(Instance::bake).collect::<Vec<_>>().as_slice()), &app.graphics.queue);
       }
 
-      ServerPacket::PlayerMoveServerPacket(PlayerMoveServerPacket { name, position }) => {
+      ServerPacket::PlayerMoveServerPacket(PlayerMoveServerPacket { uuid, position }) => {
         for player in &mut self.world.players {
-          if player.name == *name {
+          if player.uuid == *uuid {
             player.entity.state_mut().position = *position;
           }
         }
 
         self.world_renderer.entity_renderer.entities_mesh.instances = self.world.players.iter()
           .map(|x| EntityModel { position: x.entity.state().position }).collect();
-
         self.world_renderer.entity_renderer.entities_mesh.bake_instances(&app.graphics);
-        self.world_renderer.entity_renderer.entities_mesh.update_instances(
-          bytemuck::cast_slice(self.world_renderer.entity_renderer.entities_mesh.instances.iter().map(Instance::bake).collect::<Vec<_>>().as_slice()), &app.graphics.queue);
+      }
+
+      ServerPacket::ErrorServerPacket(ErrorServerPacket { error }) => {
+        error!("Server error: {:?}", error);
       }
     }
   }

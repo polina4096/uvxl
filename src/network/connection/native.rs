@@ -3,6 +3,7 @@ use anyhow::{Result, anyhow};
 use winit::event_loop::EventLoopProxy;
 use std::net::{SocketAddr, TcpStream};
 use std::sync::mpsc::{channel, Sender};
+use std::time::Duration;
 use log::error;
 
 use crate::app::UVxlEvent;
@@ -52,12 +53,17 @@ impl Connection {
     });
 
     std::thread::spawn(move || {
-      loop {
-        if let Ok(packet) = receiver.recv() {
-          while let Err(err) = socket.write_all(&packet) {
-            error!("An error has occurred while sending a packet: {}", err);
+      'a: while let Ok(packet) = receiver.recv() {
+        let mut i = 0;
+        while let Err(err) = socket.write_all(&packet) {
+          error!("An error has occurred while sending a packet: {}", err);
+          std::thread::sleep(Duration::from_secs(2));
+
+          i += 1;
+          if i > 4 {
+            break 'a;
           }
-        };
+        }
       }
     });
 

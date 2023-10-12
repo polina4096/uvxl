@@ -29,6 +29,7 @@ bytemuck = "1.14.0"
 glam = { version = "0.24.2", features = ["bytemuck", "serde"] }
 dashmap = { version = "5.5.3", optional = true }
 image = { version = "0.24.7", optional = true }
+uuid = { version = "1.4.1", features = ["v4", "fast-rng", "serde"]}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.32.0", features = ["full"], optional = true }

@@ -46,12 +46,6 @@ impl Window for ServerJoinWindow {
           let Ok(address) = self.address.parse() else { todo!() };
           let Ok(connection) = Connection::new(address, app.event_proxy.clone()) else { todo!() };
           app.connection = Some(connection);
-
-          let id = self.id();
-          if let Err(err) = app.event_proxy.send_event(UVxlEvent::MutateWindowStack(Box::new(move |app, stack| {
-            stack.retain(|window| window.id() != id);
-          }))) { error!("Failed to send UVxl event: {}", err); }
-
           app.window.set_cursor_grab(CursorGrabMode::Locked)
             .unwrap_or_else(|err| error!("Failed to confine mouse cursor: {}", err));
         }

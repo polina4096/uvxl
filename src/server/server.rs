@@ -1,3 +1,4 @@
+use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
 
@@ -8,15 +9,16 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::runtime::Runtime;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use dashmap::DashMap;
 use futures_channel::mpsc::unbounded;
 use glam::{IVec3, ivec3, vec3};
-use log::info;
+use log::{error, info};
 use tokio_util::bytes::Bytes;
 use tokio_util::codec::{BytesCodec, FramedRead, FramedWrite, LengthDelimitedCodec};
+use uuid::Uuid;
 use crate::game::entity::Entity;
-use crate::game::network::packet::{ClientPacket, InitialChunkDataServerPacket, ClientJoinServerPacket, ServerPacket, ClientMovePacket, PlayerJoinServerPacket, PlayerMoveServerPacket};
+use crate::game::network::packet::{ClientPacket, InitialChunkDataServerPacket, ClientJoinSuccessServerPacket, ServerPacket, ClientMovePacket, PlayerJoinServerPacket, PlayerMoveServerPacket, InitialPlayerData, ErrorServerPacket, ServerError};
 use crate::game::world::chunk::ChunkVec3Ext;
 use crate::game::world::worldgen::worldgen::WorldGen;
 use crate::server::player::{ServerPlayer, Tx};
@@ -66,11 +68,11 @@ impl Server {
       // Create the event loop and TCP listener we'll accept connections on.
       let ws_socket = TcpListener::bind(&address_ws).await;
       let ws_listener = ws_socket.expect("Failed to bind");
-      println!("WebSocket on: {}", &address_ws);
+      info!("WebSocket on: {}", &address_ws);
 
       let tcp_socket = TcpListener::bind(&address).await;
       let tcp_listener = tcp_socket.expect("Failed to bind");
-      println!("TCP on: {}", &address);
+      info!("TCP on: {}", &address);
 
       return (ws_listener, tcp_listener);
     });
@@ -94,59 +96,116 @@ impl Server {
     let packet = match bincode::deserialize::<ClientPacket>(packet) {
       Ok(packet) => packet,
       Err(err) => {
-        println!("Failed to deserialize packet: {:?}", err);
+        error!("Failed to deserialize packet: {:?}", err);
         return Ok(());
       }
     };
 
     match packet {
       ClientPacket::ClientJoinClientPacket(packet) => {
-        let player_data = self.peers.iter()
-          .filter(|x| x.player.name != "")
-          .map(|x| (x.player.name.clone(), x.player.entity.state().position))
+        if self.peers.iter().filter(|peer| *peer.key() != peer_addr).any(|peer| peer.player.name == packet.name) {
+          error!("Player with name {} is already connected to the server", packet.name);
+
+          let packet = bincode::serialize(&ServerPacket::ErrorServerPacket(ErrorServerPacket {
+            error: ServerError::PlayerLoggedIn,
+          }))?;
+
+          self.peers.get(&peer_addr).unwrap().tx.unbounded_send(Message::Binary(packet))?;
+          return Err(anyhow!(""));
+        }
+
+        let uuid = Uuid::new_v4();
+        let players_data = self.peers.iter()
+          .filter(|x| *x.key() != peer_addr)
+          .map(|x| InitialPlayerData {
+            uuid: x.player.uuid,
+            name: x.player.name.clone(),
+            position: x.player.entity.state().position,
+          })
           .collect::<Vec<_>>();
 
         for mut peer in self.peers.iter_mut() {
-          let addr = peer.key();
-          if *addr != peer_addr {
-            // notify others about the new player
+          // notify others about the new player
+          if *peer.key() != peer_addr {
             let packet = bincode::serialize(&ServerPacket::PlayerJoinServerPacket(PlayerJoinServerPacket {
               name: packet.name.clone(),
+              uuid: uuid,
               position: vec3(0.0, 0.0, 0.0),
             }))?;
 
             peer.tx.unbounded_send(Message::Binary(packet))?;
-          } else {
-            peer.player.name = packet.name.clone();
-            let state = peer.player.entity.state_mut();
-            state.position = vec3(16.0, 12.0, 16.0);
-            state.title = Some(packet.name.clone());
+          }
 
-            // respond to the client
-            let packet = bincode::serialize(&ServerPacket::ClientJoinServerPacket(ClientJoinServerPacket {
-              success: true,
-              reason: None,
-              players: player_data.clone(),
+          // respond to the client
+          else {
+            // process player info
+            let player = &mut peer.player;
+            player.uuid = uuid;
+            player.name = packet.name.clone();
+
+            let position = vec3(16.0, 34.0, 16.0);
+            let state = player.entity.state_mut();
+            state.position = position;
+            state.title    = Some(packet.name.clone());
+
+            let packet = bincode::serialize(&ServerPacket::ClientJoinSuccessServerPacket(ClientJoinSuccessServerPacket {
+              uuid,
+              position,
+              players: players_data.clone(),
             }))?;
 
             peer.tx.unbounded_send(Message::Binary(packet))?;
+
+            // send initial chunks
+            let chunk_pos = position.to_chunk_pos();
+            let chunk_manager = &self.world.chunk_manager;
+            let vertical_render_distance = self.settings.vertical_render_distance.load(Ordering::Relaxed) as i32;
+            let horizontal_render_distance = self.settings.horizontal_render_distance.load(Ordering::Relaxed) as i32;
+
+            for x in -horizontal_render_distance ..= horizontal_render_distance {
+              for y in -vertical_render_distance ..= vertical_render_distance {
+                for z in -horizontal_render_distance ..= horizontal_render_distance {
+                  let chunk_pos = ivec3(
+                    chunk_pos.x + x,
+                    chunk_pos.y + y,
+                    chunk_pos.z + z,
+                  );
+
+                  let chunk = chunk_manager.chunks.get(&chunk_pos).map(|x| x.clone())
+                    .unwrap_or_else(|| {
+                      let chunk = self.worldgen.generate(chunk_pos);
+                      chunk_manager.chunks.insert(chunk_pos, chunk.clone());
+                      return chunk;
+                    });
+
+                  let packet = bincode::serialize(&ServerPacket::InitialChunkDataServerPacket(InitialChunkDataServerPacket {
+                    chunk: chunk,
+                    position: ivec3(chunk_pos.x, chunk_pos.y, chunk_pos.z),
+                  }))?;
+
+                  peer.tx.unbounded_send(Message::Binary(packet))?;
+                }
+              }
+            }
           }
         }
       }
 
       ClientPacket::ClientMovePacket(ClientMovePacket { position }) => {
-        let name = self.peers.get(&peer_addr).unwrap().player.name.clone();
+        let uuid = self.peers.get(&peer_addr).unwrap().player.uuid;
         for mut peer in self.peers.iter_mut() {
-          let addr = peer.key();
-          if *addr != peer_addr {
-            // notify others about player movement
+          // notify others about player movement2
+          if *peer.key() != peer_addr {
             let packet = bincode::serialize(&ServerPacket::PlayerMoveServerPacket(PlayerMoveServerPacket {
-              name: name.clone(),
-              position: position,
+              uuid,
+              position,
             }))?;
 
             peer.tx.unbounded_send(Message::Binary(packet))?;
-          } else {
+          }
+
+          // respond to the client
+          else {
             let state = peer.player.entity.state_mut();
             state.position = position;
 
@@ -213,24 +272,10 @@ impl Server {
 
     return Ok(());
   }
-
-  pub fn broadcast(&self, packet: ServerPacket) {
-    for peer in self.peers.iter() {
-      peer.value().tx.unbounded_send(Message::Binary(bincode::serialize(&packet).unwrap())).unwrap();
-    }
-  }
-
-  pub fn broadcast_except(&self, packet: ServerPacket, except: SocketAddr) {
-    for peer in self.peers.iter() {
-      if peer.key() != &except {
-        peer.value().tx.unbounded_send(Message::Binary(bincode::serialize(&packet).unwrap())).unwrap();
-      }
-    }
-  }
 }
 
 async fn handle_tcp_connection(server: &Server, mut raw_stream: TcpStream, addr: SocketAddr) {
-  println!("Incoming TCP connection from: {}", addr);
+  info!("TCP connection established: {}", addr);
 
   // Insert the write part of this peer to the peer map.
   let (tx, rx) = unbounded();
@@ -244,17 +289,9 @@ async fn handle_tcp_connection(server: &Server, mut raw_stream: TcpStream, addr:
   let incoming = FramedRead::new(incoming, BytesCodec::new());
 
   let broadcast_incoming = incoming.try_for_each(|msg| {
-    server.handle_packet(&msg, addr).unwrap();
-
-    // We want to broadcast the message to everyone except ourselves.
-    // let peers = peer_map.lock().unwrap();
-    // let broadcast_recipients = peers.iter()
-    //   .filter(|(peer_addr, _)| peer_addr != &&addr)
-    //   .map(|(_, ws_sink)| ws_sink);
-    //
-    // for recp in broadcast_recipients {
-    //   recp.unbounded_send(Message::Binary(msg.to_vec())).unwrap();
-    // }
+    if server.handle_packet(&msg, addr).is_err() {
+      return future::err(std::io::Error::new(ErrorKind::ConnectionRefused, ""));
+    };
 
     return future::ok(());
   });
@@ -267,17 +304,15 @@ async fn handle_tcp_connection(server: &Server, mut raw_stream: TcpStream, addr:
   pin_mut!(broadcast_incoming, receive_from_others);
   future::select(broadcast_incoming, receive_from_others).await;
 
-  println!("{} disconnected", &addr);
+  info!("{} disconnected", &addr);
   server.peers.remove(&addr);
 }
 
 async fn handle_ws_connection(server: &Server, raw_stream: TcpStream, addr: SocketAddr) {
-  println!("Incoming TCP connection from: {}", addr);
-
   let ws_stream = tokio_tungstenite::accept_async(raw_stream).await
     .expect("Error during the websocket handshake occurred");
 
-  println!("WebSocket connection established: {}", addr);
+  info!("WebSocket connection established: {}", addr);
 
   // Insert the write part of this peer to the peer map.
   let (tx, rx) = unbounded();
@@ -301,6 +336,6 @@ async fn handle_ws_connection(server: &Server, raw_stream: TcpStream, addr: Sock
   pin_mut!(broadcast_incoming, receive_from_others);
   future::select(broadcast_incoming, receive_from_others).await;
 
-  println!("{} disconnected", &addr);
+  info!("{} disconnected", &addr);
   server.peers.remove(&addr);
 }

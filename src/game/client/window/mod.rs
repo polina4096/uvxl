@@ -12,5 +12,4 @@ pub trait Window {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum WindowId {
   ServerJoin,
-  PacketDebugger,
 }
